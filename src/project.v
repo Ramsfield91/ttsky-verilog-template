@@ -1,89 +1,22 @@
 `default_nettype none
 
-module tt_um_vga_example(
-    input wire [7:0] ui_in, // Dedizierte Eingänge
-    output wire [7:0] uo_out, // Dedizierte Ausgänge
-    input wire [7:0] uio_in, // IOs: Eingangs-Pfad
-    output wire [7:0] uio_out, // IOs: Ausgangs-Pfad
-    output wire [7:0] uio_oe, // IOs: Enable-Pfad (aktiv High: 0=Eingang, 1=Ausgang)
-    input wire ena, // Ignorieren
-    input wire clk, // Takt
-    input wire rst_n // Reset (aktiv Low)
+module tt_um_vga_example (
+    input  wire [7:0] ui_in,    // Dedicated inputs
+    output wire [7:0] uo_out,   // Dedicated outputs
+    input  wire [7:0] uio_in,   // IOs: Input path
+    output wire [7:0] uio_out,  // IOs: Output path
+    output wire [7:0] uio_oe,   // IOs: Enable path (active high: 0=input, 1=output)
+    input  wire       ena,      // always 1 when the design is powered, so you can ignore it
+    input  wire       clk,      // clock
+    input  wire       rst_n     // reset_n - low to reset
 );
 
-  // VGA-Signale
-  wire hsync;
-  wire vsync;
-  wire [1:0] R;
-  wire [1:0] G;
-  wire [1:0] B;
-  wire video_active;
-  wire [9:0] pix_x;
-  wire [9:0] pix_y;
-  
-  // Ausgangssignale für VGA
-  assign uo_out = {hsync, B[0], G[0], R[0], vsync, B[1], G[1], R[1]};
-  
-  // Ungenutzte Ausgänge auf 0 setzen
+  // All output pins must be assigned. If not used, assign to 0.
+  assign uo_out  = ~ui_in;  // Example: ou_out is the sum of ui_in and uio_in
   assign uio_out = 0;
-  assign uio_oe = 0;
-  
-  // Suppress Unused Signals Warning
-  wire _unused_ok = &{ena, uio_in};
-  
-  // VGA-Signalgenerator instanziieren
-  hvsync_generator hvsync_gen(
-      .clk(clk),
-      .reset(~rst_n),
-      .hsync(hsync),
-      .vsync(vsync),
-      .display_on(video_active),
-      .hpos(pix_x),
-      .vpos(pix_y)
-  );
-  
-  // Strichmännchenposition
-  reg [9:0] jump_offset; // Offset für das Springen
+  assign uio_oe  = 0;
 
-  always @(posedge clk or negedge rst_n) begin
-    if (~rst_n) begin
-      jump_offset <= 0; // Reset
-    end else begin
-      if (ui_in[0]) begin
-        jump_offset <= 50; // Springt um 50 Pixel
-      end else begin
-        jump_offset <= 0; // Zurück auf den Boden
-      end
-    end
-  end
+  // List all unused inputs to prevent warnings
+  wire _unused = &{ena, clk, rst_n, 1'b0};
 
-  // Bewegung für das rechteck
-  reg [9:0] shift_amount; // Zähler für die Bewegung nach links
-
-  // Rechteckbewegung
-  always @(posedge clk or negedge rst_n) begin
-    if (~rst_n) begin
-      shift_amount <= 0;
-    end else if (ui_in[0]) begin
-      shift_amount <= shift_amount + 1; // Bewege nach links
-    end
-  end
-
-  // Strichmännchen-Zeichenlogik
-  wire mann;
-  assign mann = (pix_x >= 310 && pix_x <= 330 && pix_y >= (300 - jump_offset) && pix_y <= 320 - jump_offset);
-
-  // Wiederholtes Rechteck alle 50 Pixel, bewegen, wenn aktiv
-  wire rechteseite_rechteck;
-  assign rechteseite_rechteck = ((pix_x + shift_amount) % 50 >= 40 && (pix_x + shift_amount) % 50 <= 49 && pix_y >= 315 && pix_y <= 330);
-
-  // Bodendarstellung, immer anzeigen
-  wire boden;
-  assign boden = (pix_y >= 330 && pix_y <= 340);
-
-  // VGA-Farbsignale
-  assign R = video_active ? ((boden || mann || rechteseite_rechteck) ? 2'b11 : 2'b00) : 2'b00; // Boden, Männchen und Rechteck weiß, ansonsten schwarz
-  assign G = R;
-  assign B = R;
-
-endmodule
+endmodule 
